@@ -169,24 +169,13 @@
         statusEl.className = "status " + (type || "");
       }
 
-      function getQueryParam(name) {
-        const url = new URL(window.location.href);
-        return url.searchParams.get(name);
-      }
-
       async function init() {
         try {
-          // Supabase reset linkte genelde access_token veya code parametresi olur
-          const accessToken = getQueryParam("access_token") || getQueryParam("token") || getQueryParam("code");
-
-          if (!accessToken) {
-            loadingEl.textContent =
-              "Reset link is missing a token. Please request a new password reset from the app.";
-            return;
-          }
-
-          // Magic link tarzı: access token ile oturum açma
-          const { data, error } = await client.auth.exchangeCodeForSession(accessToken);
+          // Supabase v2: password recovery / magic link / email confirmation
+          // linklerinden session'ı otomatik almak için resmi yöntem.
+          const { data, error } = await client.auth.getSessionFromUrl({
+            storeSession: true,
+          });
 
           if (error) {
             console.error(error);
