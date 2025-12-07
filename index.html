@@ -171,15 +171,25 @@
 
       async function init() {
         try {
-          // Supabase v2: password recovery / magic link / email confirmation
-          // linklerinden session'ı otomatik almak için resmi yöntem.
-          const { data, error } = await client.auth.getSessionFromUrl({
-            storeSession: true,
-          });
+          // For our redirect URL, Supabase appends a `?code=...` query param.
+          // We exchange this one-time code for a session before allowing
+          // the user to set a new password.
+          const url = new URL(window.location.href);
+          const code = url.searchParams.get('code');
+
+          if (!code) {
+            loadingEl.textContent =
+              'Reset link is missing a code. Please request a new password reset from the app.';
+            return;
+          }
+
+          const { data, error } = await client.auth.exchangeCodeForSession(code);
 
           if (error) {
             console.error(error);
-            loadingEl.textContent = "This reset link is invalid or has expired. Please request a new one.";
+            loadingEl.textContent =
+              error.message ||
+              'This reset link is invalid or has expired. Please request a new one.';
             return;
           }
 
