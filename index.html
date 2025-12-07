@@ -118,12 +118,24 @@
         <span class="logo-pill">LANISTA AI</span>
       </div>
       <div class="content">
-        <h1>Set a new password 🔑</h1>
+        <h1>Reset your password 🔑</h1>
         <p id="intro">
-          Enter a new password for your Lanista AI account.
+          Enter your email to request a reset link, or finish resetting your password if you came from the email.
         </p>
 
-        <div id="form-area" style="display:none;">
+        <div id="request-section">
+          <label for="email">Email address</label>
+          <input
+            id="email"
+            type="email"
+            placeholder="you@example.com"
+            autocomplete="email"
+          />
+
+          <button id="send-btn" style="margin-top:12px;">Send password reset email</button>
+        </div>
+
+        <div id="reset-section" style="display:none; margin-top:20px;">
           <label for="password">New password</label>
           <input
             id="password"
@@ -140,10 +152,10 @@
             autocomplete="new-password"
           />
 
-          <button id="submit-btn">Save new password</button>
-          <div id="status" class="status"></div>
+          <button id="submit-btn" style="margin-top:12px;">Save new password</button>
         </div>
 
+        <div id="status" class="status"></div>
         <p id="loading" class="small">Preparing your reset session...</p>
       </div>
       <div class="footer">
@@ -159,10 +171,13 @@
       const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
       const loadingEl = document.getElementById("loading");
-      const formArea = document.getElementById("form-area");
+      const requestSection = document.getElementById("request-section");
+      const resetSection = document.getElementById("reset-section");
       const statusEl = document.getElementById("status");
       const introEl = document.getElementById("intro");
       const submitBtn = document.getElementById("submit-btn");
+      const emailInput = document.getElementById("email");
+      const sendBtn = document.getElementById("send-btn");
 
       function setStatus(message, type) {
         statusEl.textContent = message || "";
@@ -170,39 +185,74 @@
       }
 
       async function init() {
-        try {
-          // For our redirect URL, Supabase appends a `?code=...` query param.
-          // We exchange this one-time code for a session before allowing
-          // the user to set a new password.
-          const url = new URL(window.location.href);
-          const code = url.searchParams.get('code');
+        const url = new URL(window.location.href);
+        const prefillEmail = url.searchParams.get("email");
+        if (prefillEmail) {
+          emailInput.value = prefillEmail;
+        }
 
-          if (!code) {
-            loadingEl.textContent =
-              'Reset link is missing a code. Please request a new password reset from the app.';
-            return;
+        requestSection.style.display = "block";
+        resetSection.style.display = "none";
+        loadingEl.style.display = "none";
+
+        client.auth.onAuthStateChange((event, session) => {
+          if (event === "PASSWORD_RECOVERY") {
+            requestSection.style.display = "none";
+            resetSection.style.display = "block";
+            loadingEl.style.display = "none";
+            introEl.textContent =
+              "Almost there! Choose a new password for your Lanista AI account.";
           }
+        });
 
-          const { data, error } = await client.auth.exchangeCodeForSession(code);
+        try {
+          await client.auth.getSessionFromUrl({ storeSession: true });
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      sendBtn.addEventListener("click", async () => {
+        const email = emailInput.value.trim();
+
+        if (!email) {
+          setStatus("Please enter your email address.", "error");
+          return;
+        }
+
+        sendBtn.disabled = true;
+        setStatus("Sending password reset email...", "");
+
+        try {
+          const redirectTo = window.location.origin + window.location.pathname;
+          const { error } = await client.auth.resetPasswordForEmail(email, {
+            redirectTo,
+          });
 
           if (error) {
             console.error(error);
-            loadingEl.textContent =
+            setStatus(
               error.message ||
-              'This reset link is invalid or has expired. Please request a new one.';
+                "Could not send reset email. Please try again in a moment.",
+              "error",
+            );
             return;
           }
 
-          loadingEl.style.display = "none";
-          formArea.style.display = "block";
-          introEl.textContent =
-            "Almost there! Choose a new password for your Lanista AI account.";
+          setStatus(
+            "If an account exists for this email, a reset link has been sent. Please check your inbox.",
+            "success",
+          );
         } catch (err) {
           console.error(err);
-          loadingEl.textContent =
-            "Something went wrong while preparing your reset session. Please try the link again or request a new one.";
+          setStatus(
+            "Unexpected error while sending reset email. Please try again.",
+            "error",
+          );
+        } finally {
+          sendBtn.disabled = false;
         }
-      }
+      });
 
       submitBtn.addEventListener("click", async () => {
         const password = document.getElementById("password").value.trim();
