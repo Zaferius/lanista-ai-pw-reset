@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Lanista AI – Reset your password</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #fff9e6;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+      .card {
+        width: 100%;
+        max-width: 420px;
+        background: #ffffff;
+        border-radius: 24px;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+        overflow: hidden;
+      }
+      .header {
+        background: #bf00ff;
+        padding: 18px 24px;
+        text-align: center;
+      }
+      .logo-pill {
+        display: inline-block;
+        padding: 6px 14px;
+        border-radius: 999px;
+        background: #000000;
+        color: #ffffff;
+        font-weight: 800;
+        font-size: 20px;
+        letter-spacing: 1px;
+      }
+      .content {
+        padding: 22px 22px 20px 22px;
+        color: #111827;
+      }
+      h1 {
+        margin: 0 0 10px 0;
+        font-size: 22px;
+      }
+      p {
+        margin: 0 0 12px 0;
+        font-size: 14px;
+        line-height: 1.6;
+        color: #4b5563;
+      }
+      label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 4px;
+        color: #374151;
+      }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 10px 12px;
+        border-radius: 16px;
+        border: 2px solid #111827;
+        outline: none;
+        font-size: 14px;
+      }
+      input:focus {
+        border-color: #ff2f74;
+      }
+      button {
+        width: 100%;
+        margin-top: 14px;
+        padding: 12px 22px;
+        border-radius: 999px;
+        border: none;
+        font-weight: 700;
+        font-size: 14px;
+        cursor: pointer;
+        background: #ff2f74;
+        color: #ffffff;
+        box-shadow: 0 4px 0 #c02052;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: default;
+        box-shadow: none;
+      }
+      .status {
+        margin-top: 12px;
+        font-size: 13px;
+      }
+      .status.error {
+        color: #b91c1c;
+      }
+      .status.success {
+        color: #166534;
+      }
+      .footer {
+        padding: 0 22px 18px 22px;
+        font-size: 11px;
+        color: #9ca3af;
+        text-align: center;
+      }
+      .small {
+        font-size: 12px;
+        color: #6b7280;
+      }
+    </style>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  </head>
+  <body>
+    <div class="card">
+      <div class="header">
+        <span class="logo-pill">LANISTA AI</span>
+      </div>
+      <div class="content">
+        <h1>Set a new password 🔑</h1>
+        <p id="intro">
+          Enter a new password for your Lanista AI account.
+        </p>
+
+        <div id="form-area" style="display:none;">
+          <label for="password">New password</label>
+          <input
+            id="password"
+            type="password"
+            placeholder="••••••••"
+            autocomplete="new-password"
+          />
+
+          <label for="password2" style="margin-top:10px;">Repeat new password</label>
+          <input
+            id="password2"
+            type="password"
+            placeholder="••••••••"
+            autocomplete="new-password"
+          />
+
+          <button id="submit-btn">Save new password</button>
+          <div id="status" class="status"></div>
+        </div>
+
+        <p id="loading" class="small">Preparing your reset session...</p>
+      </div>
+      <div class="footer">
+        If you didn’t request a password reset, you can safely close this page.
+      </div>
+    </div>
+
+    <script>
+      // TODO: BURAYI KENDİ PROJE BİLGİLERİNLE DOLDUR
+      const SUPABASE_URL = "https://chkwtywesvriltgnxjbg.supabase.co";
+      const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoa3d0eXdlc3ZyaWx0Z254amJnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQyNTU2MjgsImV4cCI6MjA3OTgzMTYyOH0.4bFPSj7AkG64hly85ZjX-h45H6lKdVNWq27R8xgSCRs";
+
+      const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      const loadingEl = document.getElementById("loading");
+      const formArea = document.getElementById("form-area");
+      const statusEl = document.getElementById("status");
+      const introEl = document.getElementById("intro");
+      const submitBtn = document.getElementById("submit-btn");
+
+      function setStatus(message, type) {
+        statusEl.textContent = message || "";
+        statusEl.className = "status " + (type || "");
+      }
+
+      function getQueryParam(name) {
+        const url = new URL(window.location.href);
+        return url.searchParams.get(name);
+      }
+
+      async function init() {
+        try {
+          // Supabase reset linkte genelde access_token veya code parametresi olur
+          const accessToken = getQueryParam("access_token") || getQueryParam("token") || getQueryParam("code");
+
+          if (!accessToken) {
+            loadingEl.textContent =
+              "Reset link is missing a token. Please request a new password reset from the app.";
+            return;
+          }
+
+          // Magic link tarzı: access token ile oturum açma
+          const { data, error } = await client.auth.exchangeCodeForSession(accessToken);
+
+          if (error) {
+            console.error(error);
+            loadingEl.textContent = "This reset link is invalid or has expired. Please request a new one.";
+            return;
+          }
+
+          loadingEl.style.display = "none";
+          formArea.style.display = "block";
+          introEl.textContent =
+            "Almost there! Choose a new password for your Lanista AI account.";
+        } catch (err) {
+          console.error(err);
+          loadingEl.textContent =
+            "Something went wrong while preparing your reset session. Please try the link again or request a new one.";
+        }
+      }
+
+      submitBtn.addEventListener("click", async () => {
+        const password = document.getElementById("password").value.trim();
+        const password2 = document.getElementById("password2").value.trim();
+
+        if (!password || !password2) {
+          setStatus("Please fill in both password fields.", "error");
+          return;
+        }
+        if (password !== password2) {
+          setStatus("Passwords do not match.", "error");
+          return;
+        }
+        if (password.length < 6) {
+          setStatus("Password should be at least 6 characters.", "error");
+          return;
+        }
+
+        submitBtn.disabled = true;
+        setStatus("Saving your new password...", "");
+
+        try {
+          const { error } = await client.auth.updateUser({ password });
+
+          if (error) {
+            console.error(error);
+            setStatus(error.message || "Could not update password. Please try again.", "error");
+            submitBtn.disabled = false;
+            return;
+          }
+
+          setStatus(
+            "Your password has been updated. You can now close this page and sign in in the Lanista AI app with your new password.",
+            "success"
+          );
+        } catch (err) {
+          console.error(err);
+          setStatus("Unexpected error while updating password.", "error");
+          submitBtn.disabled = false;
+        }
+      });
+
+      init();
+    </script>
+  </body>
+</html>
